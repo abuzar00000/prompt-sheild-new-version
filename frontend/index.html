@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt Shield</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <div class="app">
+      <div class="bg-glow" aria-hidden="true"></div>
+
+      <header class="top">
+        <div class="top-inner">
+          <div class="brand-block">
+            <div class="logo-mark" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 16L14 22L24 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="3" y="3" width="26" height="26" rx="7" stroke="currentColor" stroke-width="2" opacity="0.35"/>
+              </svg>
+            </div>
+            <div>
+              <p class="eyebrow">Local · English</p>
+              <h1 class="title">Prompt Shield</h1>
+              <p class="subtitle">Mask sensitive details locally, polish with Ollama, then get an answer from Google Gemini (AI Studio).</p>
+            </div>
+          </div>
+          <div class="top-actions">
+            <span class="pill" id="health-pill" role="status">Checking connection…</span>
+            <a class="link-btn" href="/docs" target="_blank" rel="noopener">API reference</a>
+          </div>
+        </div>
+      </header>
+
+      <main id="main" class="main">
+        <ol class="steps" aria-label="How it works">
+          <li class="step done"><span class="step-num">1</span> Paste your draft prompt</li>
+          <li class="step"><span class="step-num">2</span> Detect &amp; mask sensitive bits</li>
+          <li class="step"><span class="step-num">3</span> Polish wording (Ollama)</li>
+          <li class="step"><span class="step-num">4</span> Answer via Gemini (if enabled)</li>
+        </ol>
+
+        <section class="card input-card" aria-labelledby="input-heading">
+          <div class="card-head">
+            <h2 id="input-heading" class="card-title">Your draft</h2>
+            <p class="card-desc">Everything runs on this computer first. Add names and phrases your org cares about in <code>config/glossary.yml</code>.</p>
+          </div>
+          <label class="sr-only" for="prompt">Prompt to sanitize</label>
+          <div class="field">
+            <textarea
+              id="prompt"
+              rows="11"
+              placeholder="Example: “Email the PM at jane@unit.mil about the firewall budget for Q3…”"
+              spellcheck="true"
+            ></textarea>
+            <div class="field-meta"><span id="char-count">0</span> characters</div>
+          </div>
+          <div class="actions">
+            <label class="toggle">
+              <input type="checkbox" id="skip-rewrite" />
+              <span class="toggle-ui" aria-hidden="true"></span>
+              <span class="toggle-label"><strong>Redaction only</strong> — skip Ollama/Grok rewrite (faster if local model is off)</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="skip-grok-answer" />
+              <span class="toggle-ui" aria-hidden="true"></span>
+              <span class="toggle-label"><strong>Skip cloud answer</strong> — no Gemini call; only cleaned prompt</span>
+            </label>
+            <button type="button" class="btn-primary" id="run-btn">
+              <span class="btn-icon" aria-hidden="true">✦</span>
+              <span class="btn-label">Clean &amp; rewrite</span>
+            </button>
+          </div>
+          <p class="fine-print">Local model load can take a minute. If cloud answer is on, the request also calls Gemini (set <code>GOOGLE_API_KEY</code> in <code>.env</code>).</p>
+        </section>
+
+        <section class="card" aria-labelledby="glossary-heading">
+          <div class="card-head">
+            <h2 id="glossary-heading" class="card-title">Organization sensitive keywords</h2>
+            <p class="card-desc">Add terms that should always be masked (project names, internal systems, unit names, etc.). One per line.</p>
+          </div>
+          <div class="field">
+            <label class="sr-only" for="glossary-terms">Sensitive terms list</label>
+            <textarea id="glossary-terms" rows="8" placeholder="Example:\nProject Falcon\nInternal Tool X\nUnit 101 Cyber Div"></textarea>
+            <div class="field-meta"><span id="glossary-count">0</span> terms</div>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn-primary" id="save-glossary">
+              <span class="btn-label">Save keywords</span>
+            </button>
+          </div>
+          <p class="fine-print">Changes apply immediately to future prompts on this machine.</p>
+        </section>
+
+        <section class="card results-card" id="output-section" aria-labelledby="results-heading" hidden>
+          <div class="card-head">
+            <h2 id="results-heading" class="card-title">Your results</h2>
+            <p class="card-desc">Review the <strong>assistant answer</strong> (Gemini), the <strong>final prompt</strong> sent to it, and the redacted draft.</p>
+          </div>
+
+          <div class="alert" id="warnings" role="region" aria-live="polite" hidden></div>
+
+          <article class="result-block grok-answer-card">
+            <div class="result-label">
+              <span class="badge badge-grok">Gemini</span>
+              <h3>Assistant answer</h3>
+            </div>
+            <p class="result-hint">Response from Google AI Studio using your <strong>final prompt</strong> below. Configure in <code>config/settings.yml</code> (<code>gemini_answer</code>) or use “Skip cloud answer”.</p>
+            <div class="result-body grok-answer-body" id="assistant-answer-out" tabindex="0"></div>
+            <button type="button" class="btn-secondary" id="copy-assistant-answer">Copy answer</button>
+          </article>
+
+          <article class="result-block grok-answer-card" id="assistant-answer-rendered-card" hidden>
+            <div class="result-label">
+              <span class="badge">Local view</span>
+              <h3>Answer (with original terms)</h3>
+            </div>
+            <p class="result-hint">Placeholders replaced back to your original terms (local-only). Do not paste this outside your secure environment.</p>
+            <div class="result-body grok-answer-body" id="assistant-answer-rendered-out" tabindex="0"></div>
+            <button type="button" class="btn-secondary" id="copy-assistant-answer-rendered">Copy rendered answer</button>
+          </article>
+
+          <div class="result-grid">
+            <article class="result-block highlight">
+              <div class="result-label">
+                <span class="badge badge-success">Ready to use</span>
+                <h3>Final prompt</h3>
+              </div>
+              <p class="result-hint">This is the exact prompt used for the cloud answer (after Ollama + optional Gemini rewrite).</p>
+              <div class="result-body" id="final-out" tabindex="0"></div>
+              <button type="button" class="btn-secondary" id="copy-final">Copy final prompt</button>
+            </article>
+
+            <article class="result-block">
+              <div class="result-label">
+                <span class="badge">Technical</span>
+                <h3>After redaction</h3>
+              </div>
+              <p class="result-hint">Masked text before the rewrite step — useful for audits.</p>
+              <div class="result-body muted" id="redacted-out" tabindex="0"></div>
+              <button type="button" class="btn-secondary" id="copy-redacted">Copy redacted only</button>
+            </article>
+          </div>
+
+          <div class="result-grid">
+            <article class="result-block">
+              <div class="result-label">
+                <span class="badge">Local</span>
+                <h3>After Ollama rewrite</h3>
+              </div>
+              <p class="result-hint">Local rewrite output (placeholders preserved).</p>
+              <div class="result-body muted" id="ollama-out" tabindex="0"></div>
+              <button type="button" class="btn-secondary" id="copy-ollama">Copy Ollama version</button>
+            </article>
+
+            <article class="result-block">
+              <div class="result-label">
+                <span class="badge badge-grok">Gemini</span>
+                <h3>After Gemini rewrite</h3>
+              </div>
+              <p class="result-hint">If enabled, Gemini rewrites once more before generating the answer.</p>
+              <div class="result-body muted" id="gemini-rewrite-out" tabindex="0"></div>
+              <button type="button" class="btn-secondary" id="copy-gemini-rewrite">Copy Gemini rewrite</button>
+            </article>
+          </div>
+
+          <div class="entities-block">
+            <h3 class="entities-title">What we masked</h3>
+            <p class="entities-desc">Each row is a placeholder inserted in your text.</p>
+            <div class="table-shell">
+              <table class="entities" id="entities-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Placeholder</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Detector</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="foot">
+        <p>Prompt Shield · runs on <kbd>127.0.0.1</kbd> · <a href="/docs">OpenAPI docs</a> for integrations</p>
+      </footer>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden>Copied</div>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

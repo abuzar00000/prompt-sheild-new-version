@@ -1,0 +1,74 @@
+language: en
+
+paths:
+  glossary: config/glossary.yml
+
+embedding:
+  model: sentence-transformers/all-MiniLM-L6-v2
+  similarity_threshold: 0.72
+  batch_size: 32
+
+detection:
+  presidio_enabled: true
+  glossary_longest_first: true
+  # Extra regex: lenient IPv4-like dotted quads, "101 Cyber Div", "unit 101 Cyber Div"
+  builtin_patterns_enabled: true
+  embedding_enabled: true
+  embedding_replace_full_sentence: true
+
+grok:
+  base_url: https://api.x.ai/v1
+  # responses = POST /v1/responses (recommended). chat_completions = legacy /v1/chat/completions
+  api: responses
+  model: grok-4.20-reasoning
+  timeout_seconds: 120
+  # false = ask xAI not to retain conversation server-side (when supported)
+  store: false
+
+# Cloud answer after Ollama polish: Google AI Studio (Gemini). Set GOOGLE_API_KEY in .env
+gemini_answer:
+  enabled: true
+  # gemini-2.0-flash may hit free-tier quota; try gemini-2.5-flash or gemini-flash-latest if needed
+  model: gemini-2.5-flash
+  api_base: https://generativelanguage.googleapis.com/v1beta
+  timeout_seconds: 120
+  temperature: 0.4
+  max_output_tokens: 8192
+  # system_prompt: "..." # omit to use built-in ANSWER_SYSTEM in prompts.py
+
+# Optional: run Gemini once to rewrite the prompt again (after Ollama), then send that result to Gemini for the answer.
+gemini_rewrite:
+  enabled: true
+  # model: gemini-2.5-flash
+  # api_base: https://generativelanguage.googleapis.com/v1beta
+  timeout_seconds: 120
+  temperature: 0.2
+  max_output_tokens: 2048
+  # system_prompt: "..." # omit to use built-in REWRITE_SYSTEM in prompts.py
+
+# Local-only UX feature: replace placeholders in the final answer back to original terms
+# so the user sees a “normal” response. Keep OFF if you want copy/paste to remain safe.
+reinsert:
+  enabled: true
+
+# Optional: xAI Grok answer (disabled when using Gemini)
+grok_answer:
+  enabled: false
+  temperature: 0.4
+  max_output_tokens: 8192
+
+# Rewriter: ollama (local, default) or grok (needs GROK_API_KEY)
+rewrite:
+  provider: ollama
+  temperature: 0.2
+  max_output_tokens: 4096
+
+ollama:
+  base_url: http://127.0.0.1:11434
+  # Exact tag from `ollama list` (e.g. mistral-nemo:latest)
+  model: mistral-nemo:latest
+  timeout_seconds: 300
+
+api:
+  title: Prompt Shield
+  version: 0.1.0
