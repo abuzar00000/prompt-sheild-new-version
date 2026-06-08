@@ -30,15 +30,27 @@ def build():
     print("Building executable...")
     separator = ";" if sys.platform == "win32" else ":"
     
-    cmd = [
-        "pyinstaller",
-        "--onefile",
+    data_args = [
         f"--add-data=frontend{separator}frontend",
         f"--add-data=backend{separator}backend",
         f"--add-data=config{separator}config",
         f"--add-data=.env.example{separator}.",
-        "launcher.py"
     ]
+    
+    # Include local ollama files if they exist
+    if os.path.exists(os.path.join(REPO_ROOT, "ollama")):
+        data_args.append(f"--add-data=ollama{separator}.")
+    if os.path.exists(os.path.join(REPO_ROOT, "OllamaSetup.exe")):
+        data_args.append(f"--add-data=OllamaSetup.exe{separator}.")
+    
+    # Include local models if exist
+    if os.path.exists(os.path.join(REPO_ROOT, "models")):
+        data_args.append(f"--add-data=models{separator}models")
+
+    cmd = [
+        "pyinstaller",
+        "--onefile",
+    ] + data_args + ["launcher.py"]
     
     subprocess.check_call(cmd)
     print("\nBuild complete! The executable is in the 'dist' folder.")

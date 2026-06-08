@@ -13,6 +13,9 @@ REQUIREMENTS_FILE = os.path.join(REPO_ROOT, "requirements.txt")
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8080
 VENV_DIR = os.path.join(REPO_ROOT, ".venv")
+LOCAL_OLLAMA_LINUX = os.path.join(REPO_ROOT, "ollama")
+LOCAL_OLLAMA_WIN = os.path.join(REPO_ROOT, "OllamaSetup.exe")
+LOCAL_MODELS_DIR = os.path.join(REPO_ROOT, "models")
 
 def get_venv_python():
     if sys.platform == "win32":
@@ -52,28 +55,73 @@ def check_requirements():
 
 def check_ollama():
     print("Checking Ollama status...")
+    
+    # Pre-emptive environment setup for local models
+    if not os.path.exists(LOCAL_MODELS_DIR):
+        os.makedirs(LOCAL_MODELS_DIR)
+    os.environ["OLLAMA_MODELS"] = LOCAL_MODELS_DIR
+    
+    ollama_exec = "ollama"
+    is_windows = (sys.platform == "win32")
+    
+    # Check for local files first
+    if is_windows and os.path.exists(LOCAL_OLLAMA_WIN):
+        print(f"Local Windows Ollama Installer found at {LOCAL_OLLAMA_WIN}")
+        # On Windows, we still use the system 'ollama' command if installed, 
+        # but we can trigger the installer if it's missing.
+    elif not is_windows and os.path.exists(LOCAL_OLLAMA_LINUX):
+        print(f"Local Linux Ollama binary found at {LOCAL_OLLAMA_LINUX}")
+        ollama_exec = LOCAL_OLLAMA_LINUX
+
+    # Ensure server is running if local binary is used on Linux
+    if not is_windows and ollama_exec == LOCAL_OLLAMA_LINUX:
+        try:
+            import urllib.request
+            urllib.request.urlopen("http://localhost:11434").close()
+        except Exception:
+            print("Starting local Ollama server in background...")
+            subprocess.Popen([ollama_exec, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(5)
+
     try:
-        subprocess.check_output(["ollama", "--version"], stderr=subprocess.STDOUT)
-        print("Ollama is installed.")
+        subprocess.check_output([ollama_exec, "--version"], stderr=subprocess.STDOUT)
+        print("Ollama is functional.")
         
         # Pull the model
-        print("Checking/Pulling mistral-nemo model... this may take a moment.")
-        subprocess.check_call(["ollama", "pull", "mistral-nemo"])
+        print("Checking/Pulling mistral-nemo model (this may take a moment)...")
+        subprocess.check_call([ollama_exec, "pull", "mistral-nemo"])
         print("Model mistral-nemo is ready.")
-    except FileNotFoundError:
+    except (FileNotFoundError, subprocess.CalledProcessError):
         print("\n" + "!"*40)
-        print("Ollama is not installed.")
+        print("Ollama is not installed/functional.")
         print("!"*40 + "\n")
         
-        if sys.platform == "win32":
-            print("Downloading Ollama installer for Windows...")
-            webbrowser.open("https://ollama.com/download/OllamaSetup.exe")
+        if is_windows:
+            if os.path.exists(LOCAL_OLLAMA_WIN):
+                print(f"Launching local installer: {LOCAL_OLLAMA_WIN}")
+                print("Please complete the installation and then RESTART this launcher.")
+                subprocess.Popen([LOCAL_OLLAMA_WIN])
+            else:
+                print("Ollama is missing. Opening download page...")
+                webbrowser.open("https://ollama.com/download/OllamaSetup.exe")
         else:
+            if os.path.exists(LOCAL_OLLAMA_LINUX):
+                print("Found local 'ollama' binary but it failed to run.")
+                print("Attempting to fix permissions...")
+                os.chmod(LOCAL_OLLAMA_LINUX, 0o755)
+                # Retry once
+                try:
+                    subprocess.check_output([LOCAL_OLLAMA_LINUX, "--version"])
+                    # If works, recursive call or just proceed
+                    return check_ollama()
+                except Exception:
+                    pass
+            
             print("To install Ollama on Linux/macOS, run:")
             print("curl -fsSL https://ollama.com/install.sh | sh")
             webbrowser.open("https://ollama.com/download")
             
-        print("\nPlease install Ollama and run this launcher again.")
+        print("\nPlease ensure Ollama is installed and run this launcher again.")
         sys.exit(1)
     except Exception as e:
         print(f"Note: Could not verify/pull model automatically ({e}). Ensure Ollama is running.")
